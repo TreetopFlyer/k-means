@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<style>
+		.Canvas
+		{
+			
+		}
+		.Canvas div
+		{
+			position:absolute;
+			width:1px;
+			height:1px;
+			border:1px solid #000;
+		}
+		#Data div
+		{
+			border-color:#aaa;
+		}
+		#Bounds div
+		{
+			border:2px solid #f00;
+		}
+		#Model div
+		{
+			border:2px solid #00f;
+		}
+		</style>
+	</head>
+	<body>
+		<div id="Data" class="Canvas"></div>
+		<div id="Bounds" class="Canvas"></div>
+		<div id="Model" class="Canvas"></div>
+		<input onclick="UpdateRoutine();" type="submit" value="Update"/>
+	</body>
+<script>
+var V = {};
+V.Subtract = function(inV1, inV2)
+{
+	var out = [];
+	for(var i=0; i<inV1.length; i++)
+	{
+		out[i] = inV1[i] - inV2[i];
+	}
+	return out;
+};
+V.Add = function(inV1, inV2)
+{
+	var out = [];
+	for(var i=0; i<inV1.length; i++)
+	{
+		out[i] = inV1[i] + inV2[i];
+	}
+	return out;
+};
+V.Distance = function(inV1, inV2)
+{
+	return V.Length(V.Subtract(inV1, inV2))
+};
+V.Dot = function(inV1, inV2)
+{
+	var out = 0;
+	for(var i=0; i<inV1.length; i++)
+	{
+		out += inV1[i] * inV2[i];
+	}
+	return out;
+};
+V.Length = function(inV1)
+{
+	return Math.sqrt(V.Dot(inV1, inV1));
+};
+V.Scale = function(inV1, inScalar)
+{
+	var out = [];
+	for(var i=0; i<inV1.length; i++)
+	{
+		out[i] = inV1[i] * inScalar;
+	}
+	return out;
+};
+/*
+return Math.Pow(x, Math.log(b)/Math.log(0.5f));
+*/
+
+</script>
+
+<script>
+
+var Cloud = {};
+Cloud.Create = function(inCount, inCenter, inRadius, inBias, inDump)
+{
+	var i, j;
+	var vector;
+	var length;
+	for(i=0; i<inCount; i++)
+	{
+		//generate a random vector
+		vector = [];
+		for(j=0; j<inCenter.length; j++)
+		{
+			vector[j] = (Math.random() - 0.5);
+		}
+		
+		//normalize the vector
+		vector = V.Scale(vector, 1/V.Length(vector));
+		
+		//set a random length (with a bias)
+		length = Math.pow(Math.random(), Math.log(inBias)/Math.log(0.5))*inRadius;
+		vector = V.Scale(vector, length);
+		
+		//move the vector to the center
+		vector = V.Add(vector, inCenter);
+		
+		inDump.push(vector);
+	}
+};
+Cloud.Draw = function(inArray, inElement)
+{
+	var i;
+	for(i=0; i<inArray.length; i++)
+	{
+		inElement.innerHTML += "<div style=\"left:"+inArray[i][0]+"px; top:"+inArray[i][1]+"px;\"></div>";
+	}
+};
+Cloud.Redraw = function(inArray, inElement)
+{
+	var i;
+	inElement.innerHTML = "";
+	for(i=0; i<inArray.length; i++)
+	{
+		inElement.innerHTML += "<div style=\"left:"+inArray[i][0]+"px; top:"+inArray[i][1]+"px;\"></div>";
+	}
+};
+Cloud.Bounds = function(inArray)
+{
+	var dimensions = inArray[0].length;
+	var i, j;
+	var min = [];
+	var max = [];
+	for(i=0; i<dimensions; i++)
+	{
+		min[i] = 9999999;
+		max[i] = -999999;
+	}
+	for(i=0; i<inArray.length; i++)
+	{
+		for(j=0; j<dimensions; j++)
+		{
+			if(inArray[i][j] < min[j])
+			{
+				min[j] = inArray[i][j];
+			}
+			if(inArray[i][j] > max[j])
+			{
+				max[j] = inArray[i][j];
+			}			
+		}
+
+	}
+	return [min, max];
+};
+</script>
+
+<script>
+var K = {};
+K.Nearest = function(inData, inModel)
+{
+	var i;
+	var groups = [];
+	for(i=0; i<inModel.length; i++)
+	{
+		groups[i] = [];
+	}
+	
+	for(i=0; i<inData.length; i++)
+	{
+		var bestDistance = 999999;
+		var bestIndex = 0;
+		var distance;
+		
+		for(j=0; j<inModel.length; j++)
+		{
+			distance = V.Distance(inData[i], inModel[j]);
+			if(distance < bestDistance)
+			{
+				bestDistance = distance;
+				bestIndex = j;
+			}
+		}
+		
+		groups[bestIndex].push(inData[i]);
+	}
+	return groups
+};
+K.Shift = function(inGroups, inModel)
+{
+	var i, j;
+	var average;
+	for(i=0; i<inGroups.length; i++)
+	{
+		average = [];
+		for(j=0; j<inModel[0].length; j++)
+		{
+			average[j] = 0;
+		}
+		
+		for(j=0; j<inGroups[i].length; j++)
+		{
+			average = V.Add(inGroups[i][j], average);
+		}
+		
+		average = V.Scale(average, 1/inGroups[i].length);
+		inModel[i] = average;
+	}
+};
+</script>
+
+<script>
+
+var points =[];
+Cloud.Create(200, [500, 130], 100, 0.5, points);
+Cloud.Create(500, [700, 230], 200, 0.5, points);
+Cloud.Create(300, [900, 530], 250, 0.2, points);
+Cloud.Draw(points, document.getElementById("Data"));
+
+var bounds = Cloud.Bounds(points);
+Cloud.Draw(bounds, document.getElementById("Bounds"));
+
+var model = [];
+model.push([550, 100]);
+model.push([650, 200]);
+model.push([750, 300]);
+Cloud.Draw(model, document.getElementById("Model"));
+
+function UpdateRoutine()
+{
+	var groups = K.Nearest(points, model);
+	K.Shift(groups, model);
+	Cloud.Redraw(model, document.getElementById("Model"));
+};
+
+</script>
+
+</html>
