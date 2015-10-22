@@ -23,7 +23,7 @@
 		}
 		#Model div
 		{
-			border:2px solid #00f;
+			border:4px solid #00f;
 		}
 		</style>
 	</head>
@@ -79,6 +79,16 @@ V.Scale = function(inV1, inScalar)
 	}
 	return out;
 };
+V.Clone = function(inV1)
+{
+	var out = [];
+	var i;
+	for(i=0; i<inV1.length; i++)
+	{
+		out[i] = inV1[i];
+	}
+	return out;
+};
 /*
 return Math.Pow(x, Math.log(b)/Math.log(0.5f));
 */
@@ -88,7 +98,7 @@ return Math.Pow(x, Math.log(b)/Math.log(0.5f));
 <script>
 
 var Cloud = {};
-Cloud.Create = function(inCount, inCenter, inRadius, inBias, inDump)
+Cloud.FillCircle = function(inCount, inCenter, inRadius, inBias, inDump)
 {
 	var i, j;
 	var vector;
@@ -113,6 +123,42 @@ Cloud.Create = function(inCount, inCenter, inRadius, inBias, inDump)
 		vector = V.Add(vector, inCenter);
 		
 		inDump.push(vector);
+	}
+};
+Cloud.FillBox = function(inCount, inBounds, inDump)
+{
+	var vector;
+	var dimensions = inBounds[0].length;
+	var i, j;
+	var min, max;
+	for(i=0; i<inCount; i++)
+	{
+		vector = [];
+		for(j=0; j<dimensions; j++)
+		{
+			min = inBounds[0][j];
+			max = inBounds[1][j];
+			
+			vector[j] = min + Math.random()*(max - min);
+		}
+		inDump.push(vector);
+	}
+};
+Cloud.Reduce = function(inCount, inCloud, inDump)
+{
+	var groupSize = Math.ceil(inCloud.length/inCount);
+	var lastGroupSize = inCloud.length % inCount;
+	var i;
+	var index;
+	for(i=0; i<inCount; i++)
+	{
+		index = i*groupSize + Math.floor(Math.random()*groupSize);
+		inDump.push( V.Clone(inCloud[index]) );
+	}
+	if(lastGroupSize > 0)
+	{
+		index = i*groupSize + Math.floor(Math.random()*lastGroupSize)
+		inDump.push( V.Clone(inCloud[index]) );
 	}
 };
 Cloud.Draw = function(inArray, inElement)
@@ -164,7 +210,24 @@ Cloud.Bounds = function(inArray)
 
 <script>
 var K = {};
-K.Nearest = function(inData, inModel)
+K.Nearest = function(inPoint, inModel)
+{
+	var bestDistance = 999999;
+	var bestIndex = 0;
+	var distance;
+	var i;
+	for(i=0; i<inModel.length; i++)
+	{
+		distance = V.Distance(inPoint, inModel[i]);
+		if(distance < bestDistance)
+		{
+			bestDistance = distance;
+			bestIndex = i;
+		}
+	}
+	return bestIndex;
+};
+K.Groups = function(inData, inModel)
 {
 	var i;
 	var groups = [];
@@ -172,24 +235,10 @@ K.Nearest = function(inData, inModel)
 	{
 		groups[i] = [];
 	}
-	
 	for(i=0; i<inData.length; i++)
 	{
-		var bestDistance = 999999;
-		var bestIndex = 0;
-		var distance;
-		
-		for(j=0; j<inModel.length; j++)
-		{
-			distance = V.Distance(inData[i], inModel[j]);
-			if(distance < bestDistance)
-			{
-				bestDistance = distance;
-				bestIndex = j;
-			}
-		}
-		
-		groups[bestIndex].push(inData[i]);
+		var nearest = K.Nearest(inData[i], inModel);
+		groups[nearest].push(inData[i]);
 	}
 	return groups
 };
@@ -197,6 +246,7 @@ K.Shift = function(inGroups, inModel)
 {
 	var i, j;
 	var average;
+	console.log("---------- deltas -----------")
 	for(i=0; i<inGroups.length; i++)
 	{
 		average = [];
@@ -204,13 +254,14 @@ K.Shift = function(inGroups, inModel)
 		{
 			average[j] = 0;
 		}
-		
 		for(j=0; j<inGroups[i].length; j++)
 		{
 			average = V.Add(inGroups[i][j], average);
 		}
-		
 		average = V.Scale(average, 1/inGroups[i].length);
+		
+		console.log(V.Subtract(inModel[i], average));
+		
 		inModel[i] = average;
 	}
 };
@@ -218,24 +269,22 @@ K.Shift = function(inGroups, inModel)
 
 <script>
 
-var points =[];
-Cloud.Create(200, [500, 130], 100, 0.5, points);
-Cloud.Create(500, [700, 230], 200, 0.5, points);
-Cloud.Create(300, [900, 530], 250, 0.2, points);
+var points = [];
+Cloud.FillCircle(200, [300, 130], 100, 0.5, points);
+Cloud.FillCircle(500, [500, 230], 200, 0.5, points);
+Cloud.FillCircle(600, [700, 530], 250, 0.8, points);
 Cloud.Draw(points, document.getElementById("Data"));
 
 var bounds = Cloud.Bounds(points);
 Cloud.Draw(bounds, document.getElementById("Bounds"));
 
 var model = [];
-model.push([550, 100]);
-model.push([650, 200]);
-model.push([750, 300]);
+Cloud.Reduce(80, points, model);
 Cloud.Draw(model, document.getElementById("Model"));
 
 function UpdateRoutine()
 {
-	var groups = K.Nearest(points, model);
+	var groups = K.Groups(points, model);
 	K.Shift(groups, model);
 	Cloud.Redraw(model, document.getElementById("Model"));
 };
