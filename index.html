@@ -34,6 +34,10 @@
 		<input onclick="UpdateRoutine();" type="submit" value="Update"/>
 	</body>
 <script>
+/* Vector Library */
+/*
+	Works with n-dimensional vectors: represented as arrays of numbers
+*/
 var V = {};
 V.Subtract = function(inV1, inV2)
 {
@@ -89,15 +93,18 @@ V.Clone = function(inV1)
 	}
 	return out;
 };
-/*
-return Math.Pow(x, Math.log(b)/Math.log(0.5f));
-*/
 
 </script>
 
 <script>
 
+/* Cloud Library */
+/*
+	Works with groups of vectors (point clouds)
+*/
 var Cloud = {};
+
+// randomly create points radially and push the created points to the array inDump
 Cloud.FillCircle = function(inCount, inCenter, inRadius, inBias, inDump)
 {
 	var i, j;
@@ -125,6 +132,8 @@ Cloud.FillCircle = function(inCount, inCenter, inRadius, inBias, inDump)
 		inDump.push(vector);
 	}
 };
+
+// randomly create points in a bounding box and push the created points to the array inDump
 Cloud.FillBox = function(inCount, inBounds, inDump)
 {
 	var vector;
@@ -144,23 +153,60 @@ Cloud.FillBox = function(inCount, inBounds, inDump)
 		inDump.push(vector);
 	}
 };
+
+// randomly create points by copying some number of points from another cloud
 Cloud.Reduce = function(inCount, inCloud, inDump)
 {
-	var groupSize = Math.ceil(inCloud.length/inCount);
-	var lastGroupSize = inCloud.length % inCount;
-	var i;
-	var index;
-	for(i=0; i<inCount; i++)
+	var largeGroupSize;
+	var largeGroupCount;
+	var smallGroupSize;
+	
+	largeGroupSize = Math.floor(inCloud.length/inCount);
+	smallGroupSize = inCloud.length%inCount
+
+	for(i=0; i<inCount-1; i++)
 	{
-		index = i*groupSize + Math.floor(Math.random()*groupSize);
+		index = i*largeGroupSize + Math.floor(Math.random()*largeGroupSize);
 		inDump.push( V.Clone(inCloud[index]) );
 	}
-	if(lastGroupSize > 0)
+	if(smallGroupSize != 0)
 	{
-		index = i*groupSize + Math.floor(Math.random()*lastGroupSize)
+		index = i*largeGroupSize + Math.floor(Math.random()*smallGroupSize)
 		inDump.push( V.Clone(inCloud[index]) );
 	}
 };
+
+// return a cloud of only two points, where the first point is the minimum of all the points in inCloud and the second in the maximum
+Cloud.Bounds = function(inCloud)
+{
+	var dimensions = inCloud[0].length;
+	var i, j;
+	var min = [];
+	var max = [];
+	for(i=0; i<dimensions; i++)
+	{
+		min[i] = 9999999;
+		max[i] = -999999;
+	}
+	for(i=0; i<inCloud.length; i++)
+	{
+		for(j=0; j<dimensions; j++)
+		{
+			if(inCloud[i][j] < min[j])
+			{
+				min[j] = inCloud[i][j];
+			}
+			if(inCloud[i][j] > max[j])
+			{
+				max[j] = inCloud[i][j];
+			}			
+		}
+
+	}
+	return [min, max];
+};
+
+// for every point in the cloud inArray, add an element in inElement that has the same coordinates
 Cloud.Draw = function(inArray, inElement)
 {
 	var i;
@@ -169,6 +215,7 @@ Cloud.Draw = function(inArray, inElement)
 		inElement.innerHTML += "<div style=\"left:"+inArray[i][0]+"px; top:"+inArray[i][1]+"px;\"></div>";
 	}
 };
+// same as draw, but empties inElement before adding anything
 Cloud.Redraw = function(inArray, inElement)
 {
 	var i;
@@ -178,38 +225,15 @@ Cloud.Redraw = function(inArray, inElement)
 		inElement.innerHTML += "<div style=\"left:"+inArray[i][0]+"px; top:"+inArray[i][1]+"px;\"></div>";
 	}
 };
-Cloud.Bounds = function(inArray)
-{
-	var dimensions = inArray[0].length;
-	var i, j;
-	var min = [];
-	var max = [];
-	for(i=0; i<dimensions; i++)
-	{
-		min[i] = 9999999;
-		max[i] = -999999;
-	}
-	for(i=0; i<inArray.length; i++)
-	{
-		for(j=0; j<dimensions; j++)
-		{
-			if(inArray[i][j] < min[j])
-			{
-				min[j] = inArray[i][j];
-			}
-			if(inArray[i][j] > max[j])
-			{
-				max[j] = inArray[i][j];
-			}			
-		}
-
-	}
-	return [min, max];
-};
 </script>
 
 <script>
+/* K-Means Library */
+/*
+	Performs various k-means tasks like finding nearest neighbors
+*/
 var K = {};
+// return the index of the point in inModel that is closest to inPoint
 K.Nearest = function(inPoint, inModel)
 {
 	var bestDistance = 999999;
@@ -227,6 +251,8 @@ K.Nearest = function(inPoint, inModel)
 	}
 	return bestIndex;
 };
+// partitions inCloud into an array of point clouds and returns the array. Each cloud in the array contains the points nearest to the respective point in inModel
+// (if inModel has 10 points, then this function will return 10 point clouds, where the nth cloud contains the points nearest to the nth point in inModel)
 K.Groups = function(inData, inModel)
 {
 	var i;
@@ -242,11 +268,11 @@ K.Groups = function(inData, inModel)
 	}
 	return groups
 };
+// given a group of point clouds, move each point in inModel to the respective cloud's center (calculated as the average)
 K.Shift = function(inGroups, inModel)
 {
 	var i, j;
 	var average;
-	console.log("---------- deltas -----------")
 	for(i=0; i<inGroups.length; i++)
 	{
 		average = [];
@@ -259,8 +285,7 @@ K.Shift = function(inGroups, inModel)
 			average = V.Add(inGroups[i][j], average);
 		}
 		average = V.Scale(average, 1/inGroups[i].length);
-		
-		console.log(V.Subtract(inModel[i], average));
+
 		
 		inModel[i] = average;
 	}
@@ -279,7 +304,7 @@ var bounds = Cloud.Bounds(points);
 Cloud.Draw(bounds, document.getElementById("Bounds"));
 
 var model = [];
-Cloud.Reduce(80, points, model);
+Cloud.Reduce(50, points, model);
 Cloud.Draw(model, document.getElementById("Model"));
 
 function UpdateRoutine()
